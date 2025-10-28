@@ -1,14 +1,13 @@
-import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 /**
- * AI Service
- * Uses OpenAI API for natural language processing
+ * AI Service using Google Gemini
+ * Uses Gemini API for natural language processing
  * Converts user input into structured automation rules
  */
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || ''
-});
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 interface AutomationRule {
   name: string;
@@ -27,7 +26,7 @@ interface AutomationRule {
 }
 
 /**
- * Parse natural language into automation rule using OpenAI
+ * Parse natural language into automation rule using Google Gemini
  */
 export async function parseNaturalLanguageRule(userInput: string): Promise<AutomationRule | null> {
   try {
@@ -89,22 +88,22 @@ Output: {
   ]
 }
 
-Return ONLY valid JSON, no additional text.`;
+User input: ${userInput}
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userInput }
-      ],
-      temperature: 0.3,
-      response_format: { type: 'json_object' }
-    });
+Return ONLY valid JSON, no additional text or markdown.`;
 
-    const content = response.choices[0].message.content;
-    if (!content) return null;
-
-    const rule = JSON.parse(content);
+    const result = await model.generateContent(systemPrompt);
+    const response = result.response;
+    let text = response.text().trim();
+    
+    // Remove markdown code blocks if present
+    if (text.startsWith('```json')) {
+      text = text.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
+    } else if (text.startsWith('```')) {
+      text = text.replace(/```\n?/g, '').replace(/```\n?$/g, '');
+    }
+    
+    const rule = JSON.parse(text);
     return rule;
   } catch (error) {
     console.error('Error parsing natural language rule:', error);
@@ -121,39 +120,39 @@ export async function generateEnergySavingRecommendations(
   energyUsage: any[]
 ): Promise<string[]> {
   try {
-    const context = `
+    const prompt = `You are an energy efficiency expert for smart homes in Singapore. 
+Analyze the current state and provide 3-5 specific, actionable recommendations to reduce energy consumption.
+Focus on practical advice based on Singapore's tropical climate and typical electricity rates.
+
 Current devices: ${JSON.stringify(devices)}
 Current weather: ${JSON.stringify(weatherData)}
 Recent energy usage: ${JSON.stringify(energyUsage)}
-    `;
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: `You are an energy efficiency expert for smart homes in Singapore. 
-Analyze the current state and provide 3-5 specific, actionable recommendations to reduce energy consumption.
-Focus on practical advice based on Singapore's tropical climate and typical electricity rates.
-Return recommendations as a JSON array of strings.`
-        },
-        {
-          role: 'user',
-          content: context
-        }
-      ],
-      temperature: 0.7,
-      response_format: { type: 'json_object' }
-    });
+Return ONLY a JSON object with this structure (no markdown):
+{
+  "recommendations": ["recommendation 1", "recommendation 2", "recommendation 3"]
+}`;
 
-    const content = response.choices[0].message.content;
-    if (!content) return [];
-
-    const result = JSON.parse(content);
-    return result.recommendations || [];
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+    let text = response.text().trim();
+    
+    // Remove markdown code blocks if present
+    if (text.startsWith('```json')) {
+      text = text.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
+    } else if (text.startsWith('```')) {
+      text = text.replace(/```\n?/g, '').replace(/```\n?$/g, '');
+    }
+    
+    const parsed = JSON.parse(text);
+    return parsed.recommendations || [];
   } catch (error) {
     console.error('Error generating recommendations:', error);
-    return [];
+    return [
+      'Set AC temperature to 25-26°C to balance comfort and efficiency',
+      'Use natural ventilation when outdoor temperature is comfortable',
+      'Schedule high-power devices during off-peak hours'
+    ];
   }
 }
 
@@ -193,20 +192,16 @@ Singapore-specific information:
 
 Be friendly, concise, and practical. Use Singapore dollars (SGD) for cost estimates.`;
 
-    const messages = [
-      { role: 'system' as const, content: systemPrompt },
-      ...conversationHistory,
-      { role: 'user' as const, content: userMessage }
-    ];
-
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages,
-      temperature: 0.7,
-      max_tokens: 500
+    // Build conversation history
+    let conversationText = systemPrompt + '\n\n';
+    conversationHistory.forEach(msg => {
+      conversationText += `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}\n`;
     });
+    conversationText += `User: ${userMessage}\nAssistant:`;
 
-    return response.choices[0].message.content || 'Sorry, I could not generate a response.';
+    const result = await model.generateContent(conversationText);
+    const response = result.response;
+    return response.text() || 'Sorry, I could not generate a response.';
   } catch (error) {
     console.error('Error in chat:', error);
     return 'Sorry, I encountered an error. Please try again.';
@@ -233,48 +228,35 @@ export async function analyzeUnusualConsumption(
   }
 
   try {
-    const context = `
+    const prompt = `You are analyzing unusual energy consumption. Identify likely causes and provide suggestions.
+
 Current energy usage: ${currentUsage} kWh
 Historical average: ${historicalAverage} kWh
 Increase: ${((currentUsage / historicalAverage - 1) * 100).toFixed(1)}%
 Active devices: ${JSON.stringify(devices.filter((d: any) => d.status))}
-    `;
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: `You are analyzing unusual energy consumption. Identify likely causes and provide suggestions.
-Return a JSON object with:
+Return ONLY a JSON object with this structure (no markdown):
 {
   "message": "Brief explanation of the unusual consumption",
   "suggestions": ["suggestion 1", "suggestion 2", "suggestion 3"]
-}`
-        },
-        {
-          role: 'user',
-          content: context
-        }
-      ],
-      temperature: 0.5,
-      response_format: { type: 'json_object' }
-    });
+}`;
 
-    const content = response.choices[0].message.content;
-    if (!content) {
-      return {
-        isUnusual: true,
-        message: 'Energy consumption is unusually high.',
-        suggestions: ['Check for devices left on', 'Review AC temperature settings']
-      };
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+    let text = response.text().trim();
+    
+    // Remove markdown code blocks if present
+    if (text.startsWith('```json')) {
+      text = text.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
+    } else if (text.startsWith('```')) {
+      text = text.replace(/```\n?/g, '').replace(/```\n?$/g, '');
     }
-
-    const result = JSON.parse(content);
+    
+    const parsed = JSON.parse(text);
     return {
       isUnusual: true,
-      message: result.message,
-      suggestions: result.suggestions
+      message: parsed.message,
+      suggestions: parsed.suggestions
     };
   } catch (error) {
     console.error('Error analyzing consumption:', error);
