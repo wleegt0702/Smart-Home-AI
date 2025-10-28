@@ -1,0 +1,5 @@
+{
+  "name": "Smart Home AI Dashboard",
+  "description": "An AI-powered dashboard to control smart home devices, with features for generating images and videos based on user prompts and uploaded photos.",
+  "requestFramePermissions": []
+}
