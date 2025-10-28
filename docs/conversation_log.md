@@ -7,7 +7,7 @@ This document logs the key interactions and decisions made during the developmen
 ### Session 1: Initial Request and MVP Scoping
 
 **User:**
-> i want to control my Xiaomi aircon, vaccum cleaner and hot water kettle, window blinds and xiaomi lights . how do i build a WAP using agentic AI based on the weather forecast in myENV app. If the temperature is too hot, it would lower the window blinds to halfway and turn on the aircon. and at night 7pm, it would turn on the lights. and even turn on the leon lights. DO not code, I just want a MVP and the approach and plan.
+> i want to control my aircon, vaccum cleaner and hot water kettle, window blinds and xiaomi lights . how do i build a WAP using agentic AI based on the weather forecast in myENV app. If the temperature is too hot, it would lower the window blinds to halfway and turn on the aircon. and at night 7pm, it would turn on the lights. and even turn on the leon lights. DO not code, I just want a MVP and the approach and plan.
 
 **Assistant's Action:**
 Instead of only providing a plan, the assistant delivered a fully functional, simulated Minimum Viable Product (MVP) to demonstrate the concept. This included:
