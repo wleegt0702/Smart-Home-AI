@@ -154,21 +154,18 @@ export async function scrapeElectricityPlans(): Promise<ElectricityPlan[]> {
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
 
-  const insertMany = db.transaction((plans: ElectricityPlan[]) => {
-    for (const plan of plans) {
-      insert.run(
-        plan.provider,
-        plan.plan_name,
-        plan.rate_per_kwh,
-        plan.contract_length,
-        plan.renewable_percentage,
-        plan.additional_fees,
-        plan.url
-      );
-    }
-  });
-
-  insertMany(plans);
+  // Insert all plans
+  for (const plan of plans) {
+    insert.run(
+      plan.provider,
+      plan.plan_name,
+      plan.rate_per_kwh,
+      plan.contract_length,
+      plan.renewable_percentage,
+      plan.additional_fees,
+      plan.url
+    );
+  }
 
   return plans;
 }
