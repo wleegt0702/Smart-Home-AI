@@ -1,0 +1,273 @@
+import { Low } from 'lowdb';
+import { JSONFile } from 'lowdb/node';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { mkdirSync, existsSync } from 'fs';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const dbPath = join(__dirname, '../../data/db.json');
+
+// Ensure data directory exists
+const dataDir = dirname(dbPath);
+if (!existsSync(dataDir)) {
+  mkdirSync(dataDir, { recursive: true });
+}
+
+// Database schema
+interface Database {
+  devices: Array<{
+    id: string;
+    name: string;
+    type: string;
+    status: number;
+    value: number;
+    room: string;
+    icon: string;
+    created_at: string;
+    updated_at: string;
+  }>;
+  automation_rules: Array<{
+    id: number;
+    name: string;
+    description: string;
+    condition: string;
+    action: string;
+    enabled: number;
+    created_at: string;
+    updated_at: string;
+  }>;
+  rule_logs: Array<{
+    id: number;
+    rule_id: number;
+    executed_at: string;
+    success: number;
+    message: string;
+  }>;
+  energy_usage: Array<{
+    id: number;
+    device_id: string;
+    timestamp: string;
+    power_consumption: number;
+    duration_minutes: number;
+  }>;
+  user_settings: Array<{
+    id: number;
+    key: string;
+    value: string;
+    updated_at: string;
+  }>;
+  electricity_plans: Array<{
+    id: number;
+    provider: string;
+    plan_name: string;
+    rate_per_kwh: number;
+    contract_length: number;
+    renewable_percentage: number;
+    additional_fees: string;
+    url: string;
+    scraped_at: string;
+  }>;
+  advisor_conversations: Array<{
+    id: number;
+    user_message: string;
+    ai_response: string;
+    context: string;
+    created_at: string;
+  }>;
+}
+
+// Default data
+const defaultData: Database = {
+  devices: [],
+  automation_rules: [],
+  rule_logs: [],
+  energy_usage: [],
+  user_settings: [],
+  electricity_plans: [],
+  advisor_conversations: []
+};
+
+// Initialize database
+const adapter = new JSONFile<Database>(dbPath);
+export const db = new Low<Database>(adapter, defaultData);
+
+/**
+ * Initialize database with default data
+ */
+export async function initializeDatabase() {
+  await db.read();
+  db.data ||= defaultData;
+  await db.write();
+  console.log('✅ Database initialized');
+}
+
+/**
+ * Seed default devices
+ */
+export async function seedDefaultDevices() {
+  await db.read();
+  
+  if (db.data!.devices.length > 0) {
+    console.log('⏭️  Devices already exist, skipping seed');
+    return;
+  }
+
+  const defaultDevices = [
+    {
+      id: 'livingRoomLight',
+      name: 'Living Room Light',
+      type: 'light',
+      status: 1,
+      value: 75,
+      room: 'Living Room',
+      icon: '💡',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    },
+    {
+      id: 'aircon',
+      name: 'Air Conditioner',
+      type: 'aircon',
+      status: 1,
+      value: 24,
+      room: 'Bedroom',
+      icon: '❄️',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    },
+    {
+      id: 'vacuum',
+      name: 'Robot Vacuum',
+      type: 'vacuum',
+      status: 0,
+      value: 0,
+      room: 'Living Room',
+      icon: '🤖',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    },
+    {
+      id: 'kettle',
+      name: 'Smart Kettle',
+      type: 'kettle',
+      status: 0,
+      value: 0,
+      room: 'Kitchen',
+      icon: '☕',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    },
+    {
+      id: 'blinds',
+      name: 'Window Blinds',
+      type: 'blinds',
+      status: 1,
+      value: 50,
+      room: 'Bedroom',
+      icon: '🪟',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+  ];
+
+  db.data!.devices = defaultDevices;
+  await db.write();
+  console.log(`✅ Seeded ${defaultDevices.length} default devices`);
+}
+
+/**
+ * Seed default automation rules
+ */
+export async function seedDefaultRules() {
+  await db.read();
+  
+  if (db.data!.automation_rules.length > 0) {
+    console.log('⏭️  Rules already exist, skipping seed');
+    return;
+  }
+
+  const defaultRules = [
+    {
+      id: 1,
+      name: 'Energy Saver Mode',
+      description: 'Turn off all lights when no one is home',
+      condition: JSON.stringify({ type: 'presence', operator: '=', value: false }),
+      action: JSON.stringify([{ deviceId: 'livingRoomLight', action: 'turnOff' }]),
+      enabled: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    },
+    {
+      id: 2,
+      name: 'Night Mode',
+      description: 'Dim lights at 10 PM',
+      condition: JSON.stringify({ type: 'time', value: '22:00' }),
+      action: JSON.stringify([{ deviceId: 'livingRoomLight', action: 'setValue', value: 30 }]),
+      enabled: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+  ];
+
+  db.data!.automation_rules = defaultRules;
+  await db.write();
+  console.log(`✅ Seeded ${defaultRules.length} default rules`);
+}
+
+// Helper functions for common operations
+export const dbHelpers = {
+  // Get next ID for a table
+  getNextId: async (table: keyof Database): Promise<number> => {
+    await db.read();
+    const items = db.data![table] as any[];
+    if (items.length === 0) return 1;
+    const maxId = Math.max(...items.map((item: any) => item.id || 0));
+    return maxId + 1;
+  },
+
+  // Find one item
+  findOne: async <T>(table: keyof Database, predicate: (item: T) => boolean): Promise<T | undefined> => {
+    await db.read();
+    return (db.data![table] as T[]).find(predicate);
+  },
+
+  // Find all items
+  findAll: async <T>(table: keyof Database, predicate?: (item: T) => boolean): Promise<T[]> => {
+    await db.read();
+    const items = db.data![table] as T[];
+    return predicate ? items.filter(predicate) : items;
+  },
+
+  // Insert item
+  insert: async <T extends { id?: any }>(table: keyof Database, item: T): Promise<T> => {
+    await db.read();
+    if (!item.id && table !== 'devices') {
+      item.id = await dbHelpers.getNextId(table);
+    }
+    (db.data![table] as T[]).push(item);
+    await db.write();
+    return item;
+  },
+
+  // Update item
+  update: async <T extends { id: any }>(table: keyof Database, id: any, updates: Partial<T>): Promise<boolean> => {
+    await db.read();
+    const items = db.data![table] as T[];
+    const index = items.findIndex((item: T) => item.id === id);
+    if (index === -1) return false;
+    items[index] = { ...items[index], ...updates };
+    await db.write();
+    return true;
+  },
+
+  // Delete item
+  delete: async <T extends { id: any }>(table: keyof Database, id: any): Promise<boolean> => {
+    await db.read();
+    const items = db.data![table] as T[];
+    const index = items.findIndex((item: T) => item.id === id);
+    if (index === -1) return false;
+    items.splice(index, 1);
+    await db.write();
+    return true;
+  }
+};
