@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { generateVideo, fileToBase64 } from '../services/geminiService';
 import { UploadIcon } from './icons/Icons';
 
-// FIX: Add global declaration for window.aistudio, used by this component.
+// FIX: To resolve a type conflict, the AIStudio type is defined directly on the global window object.
 declare global {
   interface Window {
     aistudio?: {
